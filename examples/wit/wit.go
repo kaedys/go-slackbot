@@ -1,13 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	"golang.org/x/net/context"
-
 	slackbot "github.com/adampointer/go-slackbot"
-	"github.com/chris-skud/go-wit"
 	"github.com/nlopes/slack"
 )
 

@@ -36,11 +36,11 @@
 package slackbot
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	"golang.org/x/net/context"
-
+	log "github.com/Sirupsen/logrus"
 	"github.com/nlopes/slack"
 )
 
@@ -59,17 +59,17 @@ func New(slackToken string) *Bot {
 
 type Bot struct {
 	SimpleRouter
-	// Routes to be matched, in order.
-	routes []*Route
-	// Slack UserID of the bot UserID
-	botUserID string
-	// Slack API
-	Client *slack.Client
-	RTM    *slack.RTM
+	routes              []*Route      // Routes to be matched, in order.
+	botUserID           string        // Slack UserID of the bot UserID
+	Client              *slack.Client // Slack API
+	RTM                 *slack.RTM
+	TalkToSelf          bool    // if set, the bot can reply to its own messages
+	TypingDelayModifier float64 // percentage increase or decrease to typing *delay*. 0 = 2ms per character, 4 = 10ms per, -0.5 = 1ms per. Max delay is 2000ms regardless.
 }
 
 // Run listens for incoming slack RTM events, matching them to an appropriate handler.
-func (b *Bot) Run() {
+// Run will terminate when the provided channel is closed.
+func (b *Bot) Run(quitCh <-chan struct{}) {
 	b.RTM = b.Client.NewRTM()
 	go b.RTM.ManageConnection()
 	for {
@@ -79,11 +79,11 @@ func (b *Bot) Run() {
 			ctx = AddBotToContext(ctx, b)
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
-				fmt.Printf("Connected: %#v\n", ev.Info.User)
+				log.Debugf("Connected: %#v", ev.Info.User)
 				b.setBotID(ev.Info.User.ID)
 			case *slack.MessageEvent:
 				// ignore messages from the current user, the bot user
-				if b.botUserID == ev.User {
+				if !b.TalkToSelf && b.botUserID == ev.User {
 					continue
 				}
 
@@ -94,16 +94,19 @@ func (b *Bot) Run() {
 				}
 
 			case *slack.RTMError:
-				fmt.Printf("Error: %s\n", ev.Error())
+				log.Errorf("Error: %s", ev.Error())
 
 			case *slack.InvalidAuthEvent:
-				fmt.Printf("Invalid credentials")
+				log.Errorf("Invalid credentials")
 				break
 
 			default:
 				// Ignore other events..
-				// fmt.Printf("Unexpected: %v\n", msg.Data)
+				log.Debugf("Unexpected: %#v", msg)
 			}
+		case <-quitCh:
+			log.Debugf("Quit event received.")
+			return
 		}
 	}
 }
@@ -128,7 +131,7 @@ func (b *Bot) ReplyWithAttachments(evt *slack.MessageEvent, attachments []slack.
 func (b *Bot) Type(evt *slack.MessageEvent, msg interface{}) {
 	msgLen := msgLen(msg)
 
-	sleepDuration := time.Minute * time.Duration(msgLen) / 3000
+	sleepDuration := time.Duration(float64(time.Minute*time.Duration(msgLen)/30000) * (1 + b.TypingDelayModifier))
 	if sleepDuration > maxTypingSleepMs {
 		sleepDuration = maxTypingSleepMs
 	}
@@ -147,7 +150,7 @@ func (b *Bot) setBotID(ID string) {
 	b.SimpleRouter.SetBotID(ID)
 }
 
-// msgLen gets lenght of message and attachment messages. Unsupported types return 0.
+// msgLen gets length of message and attachment messages. Unsupported types return 0.
 func msgLen(msg interface{}) (msgLen int) {
 	switch m := msg.(type) {
 	case string:
