@@ -40,8 +40,8 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/nlopes/slack"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -59,11 +59,9 @@ func New(slackToken string) *Bot {
 
 type Bot struct {
 	SimpleRouter
-	routes              []*Route      // Routes to be matched, in order.
 	botUserID           string        // Slack UserID of the bot UserID
 	Client              *slack.Client // Slack API
 	RTM                 *slack.RTM
-	TalkToSelf          bool    // if set, the bot can reply to its own messages
 	TypingDelayModifier float64 // percentage increase or decrease to typing *delay*. 0 = 2ms per character, 4 = 10ms per, -0.5 = 1ms per. Max delay is 2000ms regardless.
 }
 
@@ -75,24 +73,17 @@ func (b *Bot) Run(quitCh <-chan struct{}) {
 	for {
 		select {
 		case msg := <-b.RTM.IncomingEvents:
-			ctx := context.Background()
-			ctx = AddBotToContext(ctx, b)
+			ctx := AddBotToContext(context.Background(), b)
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
 				log.Debugf("Connected: %#v", ev.Info.User)
 				b.setBotID(ev.Info.User.ID)
 			case *slack.MessageEvent:
-				// ignore messages from the current user, the bot user
-				if !b.TalkToSelf && b.botUserID == ev.User {
-					continue
-				}
-
 				ctx = AddMessageToContext(ctx, ev)
 				var match RouteMatch
-				if matched, ctx := b.Match(ctx, &match); matched {
+				if matched, ctx := b.Match(ctx, &match); matched && match.Handler != nil {
 					match.Handler(ctx)
 				}
-
 			case *slack.RTMError:
 				log.Errorf("Error: %s", ev.Error())
 
@@ -102,7 +93,7 @@ func (b *Bot) Run(quitCh <-chan struct{}) {
 
 			default:
 				// Ignore other events..
-				log.Debugf("Unexpected: %#v", msg)
+				// log.Debugf("Unexpected: %#v", msg)
 			}
 		case <-quitCh:
 			log.Debugf("Quit event received.")
