@@ -59,7 +59,7 @@ type Bot struct {
 	botUserID             string        // Slack UserID of the bot UserID
 	Client                *slack.Client // Slack API
 	RTM                   *slack.RTM
-	TypingDelayMultiplier float64 // Multiplier on typing delay.  Default 1 -> 2ms per character.  5 -> 10ms per, 0.5 -> 1ms per. Max delay is 2000ms regardless.
+	TypingDelayMultiplier float64 // Multiplier on typing delay.  Default 0 -> no delay.  1 -> 2ms per character, 5 -> 10ms per, 0.5 -> 1ms per. Max delay is 2000ms regardless.
 }
 
 // Run listens for incoming slack RTM events, matching them to an appropriate handler.
@@ -100,19 +100,21 @@ func (b *Bot) Run(quitCh <-chan struct{}) {
 }
 
 // Reply replies to a message event with a simple message.
-func (b *Bot) Reply(evt *slack.MessageEvent, msg string, typing bool) {
-	if typing {
+func (b *Bot) Reply(evt *slack.MessageEvent, msg string) {
+	if b.TypingDelayMultiplier > 0 {
 		b.Type(evt, msg)
 	}
 	b.RTM.SendMessage(b.RTM.NewOutgoingMessage(msg, evt.Channel))
 }
 
 // ReplyWithAttachments replys to a message event with a Slack Attachments message.
-func (b *Bot) ReplyWithAttachments(evt *slack.MessageEvent, attachments []slack.Attachment, typing bool) {
-	params := slack.PostMessageParameters{AsUser: true}
-	params.Attachments = attachments
+func (b *Bot) ReplyWithAttachments(evt *slack.MessageEvent, msg string, attachments ...slack.Attachment) {
+	params := slack.PostMessageParameters{
+		AsUser:      true,
+		Attachments: attachments,
+	}
 
-	b.Client.PostMessage(evt.Msg.Channel, "", params)
+	b.Client.PostMessage(evt.Msg.Channel, msg, params)
 }
 
 // Type sends a typing message and simulates delay (max 2000ms) based on message size.
