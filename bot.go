@@ -44,25 +44,22 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	WithTyping    bool = true
-	WithoutTyping bool = false
-
-	maxTypingSleepMs time.Duration = time.Millisecond * 2000
-)
+const maxTypingSleep = time.Millisecond * 2000
 
 // New constructs a new Bot using the slackToken to authorize against the Slack service.
 func New(slackToken string) *Bot {
-	b := &Bot{Client: slack.New(slackToken)}
-	return b
+	return &Bot{
+		Client:                slack.New(slackToken),
+		TypingDelayMultiplier: 1,
+	}
 }
 
 type Bot struct {
 	SimpleRouter
-	botUserID           string        // Slack UserID of the bot UserID
-	Client              *slack.Client // Slack API
-	RTM                 *slack.RTM
-	TypingDelayModifier float64 // percentage increase or decrease to typing *delay*. 0 = 2ms per character, 4 = 10ms per, -0.5 = 1ms per. Max delay is 2000ms regardless.
+	botUserID             string        // Slack UserID of the bot UserID
+	Client                *slack.Client // Slack API
+	RTM                   *slack.RTM
+	TypingDelayMultiplier float64 // Multiplier on typing delay.  Default 1 -> 2ms per character.  5 -> 10ms per, 0.5 -> 1ms per. Max delay is 2000ms regardless.
 }
 
 // Run listens for incoming slack RTM events, matching them to an appropriate handler.
@@ -73,22 +70,22 @@ func (b *Bot) Run(quitCh <-chan struct{}) {
 	for {
 		select {
 		case msg := <-b.RTM.IncomingEvents:
-			ctx := AddBotToContext(context.Background(), b)
+			ctx := addBotToContext(context.Background(), b)
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
 				log.Debugf("Connected: %#v", ev.Info.User)
 				b.setBotID(ev.Info.User.ID)
 			case *slack.MessageEvent:
-				ctx = AddMessageToContext(ctx, ev)
+				ctx = addMessageToContext(ctx, ev)
 				var match RouteMatch
 				if matched, ctx := b.Match(ctx, &match); matched && match.Handler != nil {
 					match.Handler(ctx)
 				}
 			case *slack.RTMError:
-				log.Errorf("Error: %s", ev.Error())
+				log.WithError(ev).Error("RTM Error.")
 
 			case *slack.InvalidAuthEvent:
-				log.Errorf("Invalid credentials")
+				log.Error("Invalid credentials")
 				break
 
 			default:
@@ -122,9 +119,9 @@ func (b *Bot) ReplyWithAttachments(evt *slack.MessageEvent, attachments []slack.
 func (b *Bot) Type(evt *slack.MessageEvent, msg interface{}) {
 	msgLen := msgLen(msg)
 
-	sleepDuration := time.Duration(float64(time.Minute*time.Duration(msgLen)/30000) * (1 + b.TypingDelayModifier))
-	if sleepDuration > maxTypingSleepMs {
-		sleepDuration = maxTypingSleepMs
+	sleepDuration := time.Duration(float64(time.Minute*time.Duration(msgLen)/30000) * (b.TypingDelayMultiplier))
+	if sleepDuration > maxTypingSleep {
+		sleepDuration = maxTypingSleep
 	}
 
 	b.RTM.SendMessage(b.RTM.NewTypingMessage(evt.Channel))

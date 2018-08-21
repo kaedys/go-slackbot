@@ -39,5 +39,5 @@ But wait, there's more! Well, until there's more, the slackbot package exposes g
 
 If you want to kick the tires, we would love feedback. Check out these two examples:
 
-- [simple.go](https://github.com/BeepBoopHQ/go-slackbot/blob/master/examples/simple/simple.go)
-- [wit.go](https://github.com/BeepBoopHQ/go-slackbot/blob/master/examples/wit/wit.go).
+- [simple.go](https://github.com/kaedys/go-slackbot/blob/master/examples/simple/simple.go)
+- [wit.go](https://github.com/kaedys/go-slackbot/blob/master/examples/wit/wit.go).

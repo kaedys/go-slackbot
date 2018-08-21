@@ -22,8 +22,7 @@ func BotFromContext(ctx context.Context) *Bot {
 	return nil
 }
 
-// AddBotToContext sets the bot reference in context and returns the newly derived context
-func AddBotToContext(ctx context.Context, bot *Bot) context.Context {
+func addBotToContext(ctx context.Context, bot *Bot) context.Context {
 	return context.WithValue(ctx, bot_context_key, bot)
 }
 
@@ -34,7 +33,6 @@ func MessageFromContext(ctx context.Context) *slack.MessageEvent {
 	return nil
 }
 
-// AddMessageToContext sets the Slack message event reference in context and returns the newly derived context
-func AddMessageToContext(ctx context.Context, msg *slack.MessageEvent) context.Context {
+func addMessageToContext(ctx context.Context, msg *slack.MessageEvent) context.Context {
 	return context.WithValue(ctx, message_context_key, msg)
 }

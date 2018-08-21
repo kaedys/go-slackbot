@@ -130,9 +130,9 @@ type RegexpMatcher struct {
 
 func (rm *RegexpMatcher) Match(ctx context.Context) (bool, context.Context) {
 	msg := MessageFromContext(ctx)
-	// A message be receded by a direct mention. For simplicity sake, strip out any potention direct mentions first
+	// A message may be received via a direct mention. For simplicity sake, strip out any potention direct mentions first
 	text := StripDirectMention(msg.Text)
-	// now consider stripped text against regular expression
+	// Now match the stripped text against the regular expression
 	matched := rm.regex.MatchString(text)
 	return matched, ctx
 }
@@ -183,5 +183,5 @@ func (tm *TypesMatcher) SetBotID(botID string) {
 
 // addRegexpMatcher adds a host or path matcher and builder to a route.
 func (r *Route) addTypesMatcher(types ...MessageType) {
-	r.AddMatcher(&TypesMatcher{types: types, botUserID: ""})
+	r.AddMatcher(&TypesMatcher{types: types, botUserID: r.botUserID})
 }

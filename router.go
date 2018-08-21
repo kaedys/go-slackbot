@@ -50,6 +50,7 @@ func (r *SimpleRouter) newRoute(selftalk bool) *Route {
 	route := &Route{
 		err:        r.err,
 		talkToSelf: selftalk,
+		botUserID:  r.botUserID,
 	}
 	r.routes = append(r.routes, route)
 	return route

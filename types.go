@@ -6,13 +6,11 @@ import (
 	"github.com/nlopes/slack"
 )
 
-type MessageType string
+type MessageType int
 
 const (
-	DirectMessage MessageType = "direct_message"
-	DirectMention MessageType = "direct_mention"
-	Mention       MessageType = "mention"
-	Ambient       MessageType = "ambient"
+	DirectMessage MessageType = iota
+	DirectMention
 )
 
 type Handler func(context.Context)
