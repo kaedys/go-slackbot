@@ -81,6 +81,7 @@ func (b *Bot) Run(quitCh <-chan struct{}) error {
 	b.RTM = b.Client.NewRTM()
 	go b.RTM.ManageConnection()
 
+auth:
 	for {
 		select {
 		case msg := <-b.RTM.IncomingEvents:
@@ -88,7 +89,7 @@ func (b *Bot) Run(quitCh <-chan struct{}) error {
 			case *slack.ConnectedEvent:
 				b.debugf("[Slackbot] Connected: %+v", ev.Info.User)
 				b.setBotID(ev.Info.User.ID)
-				break
+				break auth
 
 			case *slack.InvalidAuthEvent:
 				return fmt.Errorf("authentication failed")
