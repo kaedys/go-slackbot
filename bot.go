@@ -60,43 +60,75 @@ type Bot struct {
 	Client                *slack.Client // Slack API
 	RTM                   *slack.RTM
 	TypingDelayMultiplier float64 // Multiplier on typing delay.  Default 0 -> no delay.  1 -> 2ms per character, 5 -> 10ms per, 0.5 -> 1ms per. Max delay is 2000ms regardless.
+
+	debugging bool
 }
 
-// Run listens for incoming slack RTM events, matching them to an appropriate handler.
-// Run will terminate when the provided channel is closed.
-func (b *Bot) Run(quitCh <-chan struct{}) {
+// Returns a copy of the bot with debugging enabled.  Intended to be daisychained with the New() constructor.
+// Note that this is only a shallow copy, if used after Run() is called, race conditions may occur.
+func (b *Bot) WithDebugging() *Bot {
+	newB := *b
+	newB.debugging = true
+	return &newB
+}
+
+// Run listens for incoming slack RTM events, matching them to an appropriate handler. It will terminate when the
+// provided channel is closed, or if it encounters an error during initial authentication.  Authentication is done
+// synchronously, and a non-nil error will be returned if an authentication error is encounters.  Once authentication
+// has succeeded, Run will create a new goroutine for the actual message handling, and thus does not need to be run
+// in a goroutine itself.
+func (b *Bot) Run(quitCh <-chan struct{}) error {
 	b.RTM = b.Client.NewRTM()
 	go b.RTM.ManageConnection()
+
 	for {
 		select {
 		case msg := <-b.RTM.IncomingEvents:
-			ctx := addBotToContext(context.Background(), b)
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
-				log.Debugf("Connected: %#v", ev.Info.User)
+				b.debugf("[Slackbot] Connected: %+v", ev.Info.User)
 				b.setBotID(ev.Info.User.ID)
-			case *slack.MessageEvent:
-				ctx = addMessageToContext(ctx, ev)
-				var match RouteMatch
-				if matched, ctx := b.Match(ctx, &match); matched && match.Handler != nil {
-					match.Handler(ctx)
-				}
-			case *slack.RTMError:
-				log.WithError(ev).Error("RTM Error.")
-
-			case *slack.InvalidAuthEvent:
-				log.Error("Invalid credentials")
 				break
 
+			case *slack.InvalidAuthEvent:
+				return fmt.Errorf("authentication failed")
+
 			default:
-				// Ignore other events..
-				// log.Debugf("Unexpected: %#v", msg)
+				// Ignore other events, including messages, until auth is successful
 			}
 		case <-quitCh:
-			log.Debugf("Quit event received.")
-			return
+			b.debugf("[Slackbot] Quit event received during authentication.")
+			return fmt.Errorf("quit event received during authentication")
 		}
 	}
+
+	go func() {
+		for {
+			select {
+			case msg := <-b.RTM.IncomingEvents:
+				ctx := addBotToContext(context.Background(), b)
+				switch ev := msg.Data.(type) {
+				case *slack.MessageEvent:
+					ctx = addMessageToContext(ctx, ev)
+					var match RouteMatch
+					if matched, ctx := b.Match(ctx, &match); matched && match.Handler != nil {
+						match.Handler(ctx)
+					}
+
+				case *slack.RTMError:
+					log.WithError(ev).Error("[Slackbot] RTM Error.")
+
+				default:
+					// Ignore other events.
+				}
+			case <-quitCh:
+				b.debugf("[Slackbot] Quit event received.")
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
 // Reply replies to a message event with a simple message.
@@ -138,6 +170,12 @@ func (b *Bot) BotUserID() string {
 func (b *Bot) setBotID(ID string) {
 	b.botUserID = ID
 	b.SimpleRouter.SetBotID(ID)
+}
+
+func (b *Bot) debugf(format string, args ...interface{}) {
+	if b.debugging {
+		log.Debugf(format, args...)
+	}
 }
 
 // msgLen gets length of message and attachment messages. Unsupported types return 0.
