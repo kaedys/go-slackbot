@@ -50,7 +50,7 @@ const maxTypingSleep = time.Millisecond * 2000
 func New(slackToken string) *Bot {
 	return &Bot{
 		Client:                slack.New(slackToken),
-		TypingDelayMultiplier: 1,
+		TypingDelayMultiplier: 0,
 	}
 }
 
@@ -135,7 +135,7 @@ auth:
 // Reply replies to a message event with a simple message.
 func (b *Bot) Reply(evt *slack.MessageEvent, msg string) {
 	if b.TypingDelayMultiplier > 0 {
-		b.Type(evt, msg)
+		b.TypeByMessage(evt, msg)
 	}
 	b.RTM.SendMessage(b.RTM.NewOutgoingMessage(msg, evt.Channel))
 }
@@ -150,8 +150,13 @@ func (b *Bot) ReplyWithAttachments(evt *slack.MessageEvent, msg string, attachme
 	b.Client.PostMessage(evt.Msg.Channel, msg, params)
 }
 
-// Type sends a typing message and simulates delay (max 2000ms) based on message size.
-func (b *Bot) Type(evt *slack.MessageEvent, msg interface{}) {
+// Type sends a typing event to indicate that the bot is "typing" or otherwise working.
+func (b *Bot) Type(evt *slack.MessageEvent) {
+	b.RTM.SendMessage(b.RTM.NewTypingMessage(evt.Channel))
+}
+
+// TypeByMessage sends a typing message and simulates delay (max 2000ms) based on message size.
+func (b *Bot) TypeByMessage(evt *slack.MessageEvent, msg interface{}) {
 	msgLen := msgLen(msg)
 
 	sleepDuration := time.Duration(float64(time.Minute*time.Duration(msgLen)/30000) * (b.TypingDelayMultiplier))
@@ -159,7 +164,7 @@ func (b *Bot) Type(evt *slack.MessageEvent, msg interface{}) {
 		sleepDuration = maxTypingSleep
 	}
 
-	b.RTM.SendMessage(b.RTM.NewTypingMessage(evt.Channel))
+	b.Type(evt)
 	time.Sleep(sleepDuration)
 }
 
