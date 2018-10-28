@@ -147,7 +147,7 @@ func (b *Bot) ReplyWithAttachments(evt *slack.MessageEvent, msg string, attachme
 		Attachments: attachments,
 	}
 
-	b.Client.PostMessage(evt.Msg.Channel, msg, params)
+	b.Client.PostMessage(evt.Msg.Channel, slack.MsgOptionText(msg, false), slack.MsgOptionPostMessageParameters(params))
 }
 
 // Type sends a typing event to indicate that the bot is "typing" or otherwise working.
