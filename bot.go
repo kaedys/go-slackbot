@@ -143,11 +143,10 @@ func (b *Bot) Reply(evt *slack.MessageEvent, msg string) {
 // ReplyWithAttachments replys to a message event with a Slack Attachments message.
 func (b *Bot) ReplyWithAttachments(evt *slack.MessageEvent, msg string, attachments ...slack.Attachment) {
 	params := slack.PostMessageParameters{
-		AsUser:      true,
-		Attachments: attachments,
+		AsUser: true,
 	}
 
-	b.Client.PostMessage(evt.Msg.Channel, slack.MsgOptionText(msg, false), slack.MsgOptionPostMessageParameters(params))
+	b.Client.PostMessage(evt.Msg.Channel, slack.MsgOptionText(msg, false), slack.MsgOptionPostMessageParameters(params), slack.MsgOptionAttachments(attachments...))
 }
 
 // Type sends a typing event to indicate that the bot is "typing" or otherwise working.
